@@ -1,62 +1,148 @@
 import SwiftUI
-import HealthKit
-
-// Määritellään HealthDataType enum
-enum HealthDataType {
-    case steps, calories, distance, heartRate
-}
 
 struct HealthDataView: View {
     @State private var stepCount: Double? = nil
     @State private var caloriesBurned: Double? = nil
     @State private var distance: Double? = nil
     @State private var heartRate: Double? = nil
+    
+    @State private var showingStepDetail = false
+    @State private var showingCaloriesDetail = false
+    @State private var showingDistanceDetail = false
+    @State private var showingHeartRateDetail = false
+    
+    @State private var lastUpdated: Date? = nil
+    @State private var showingUpdatedNotification = false
 
     var body: some View {
-        NavigationView {
-            VStack(spacing: 20) {
-                Text("Terveystiedot tänään")
-                    .font(.title)
-                    .bold()
+        ZStack {
+            // Sininen tausta koko ruudun peittämiseksi
+            Color.blue.opacity(0.3)
+                .edgesIgnoringSafeArea(.all) // Kattaa koko näytön
 
-                healthDataElement(title: "Askeleet", value: stepCount.map { "\(Int($0))" } ?? "Ei tietoa saatavilla", dataType: .steps)
-                healthDataElement(title: "Kulutetut kalorit", value: caloriesBurned.map { "\(Int($0)) kcal" } ?? "Ei tietoa saatavilla", dataType: .calories)
-                healthDataElement(title: "Matka", value: distance.map { String(format: "%.2f km", $0) } ?? "Ei tietoa saatavilla", dataType: .distance)
-                healthDataElement(title: "Syke", value: heartRate.map { "\(Int($0)) bpm" } ?? "Ei tietoa saatavilla", dataType: .heartRate)
-            }
-            .onAppear {
-                fetchHealthData()
-            }
-            .padding()
-        }
-    }
+            ScrollView {
+                VStack(spacing: 20) {
+                    if showingUpdatedNotification {
+                        Text("Terveystiedot ovat ajantasalla!")
+                            .foregroundColor(.green)
+                            .transition(.opacity)
+                    }
 
-    // Funktio terveystiedon elementin luomiseen
-    func healthDataElement(title: String, value: String, dataType: HealthDataType) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                VStack(alignment: .leading) {
-                    Text(title)
-                        .font(.headline)
-                    Text(value)
-                        .font(.subheadline)
+                    // Otsikko ja päivitysikoni
+                    HStack {
+                        Text("Terveystiedot tänään")
+                            .font(.title)
+                            .bold()
+                        Spacer()
+                        
+                        Button(action: {
+                            fetchHealthData()  // Päivitetään terveystiedot
+                        }) {
+                            Image(systemName: "arrow.clockwise")
+                                .font(.title2)
+                        }
+                    }
+                    
+                    // Viimeisin päivitysaika haalealla fontilla
+                    if let lastUpdated = lastUpdated {
+                        Text("Viimeisin päivitys: \(formattedDate(lastUpdated))")
+                            .font(.footnote)
+                            .foregroundColor(.gray)
+                    }
+
+                    // Terveystietojen esittely
+                    VStack(spacing: 20) {
+                        // Askeleet
+                        HStack {
+                            if let stepCount = stepCount {
+                                Text("Askeleet: ")
+                                + Text("\(Int(stepCount))").bold()
+                            } else {
+                                Text("Askeleet: Ei tietoa saatavilla")
+                            }
+                            Spacer()
+                            Button(action: {
+                                showingStepDetail = true
+                            }) {
+                                Image(systemName: "info.circle")
+                                    .font(.title2)
+                            }
+                            .sheet(isPresented: $showingStepDetail) {
+                                StepDetailView()
+                            }
+                        }
+
+                        // Kalorit
+                        HStack {
+                            if let caloriesBurned = caloriesBurned {
+                                Text("Kulutetut kalorit: ")
+                                + Text("\(Int(caloriesBurned)) kcal").bold()
+                            } else {
+                                Text("Kulutetut kalorit: Ei tietoa saatavilla")
+                            }
+                            Spacer()
+                            Button(action: {
+                                showingCaloriesDetail = true
+                            }) {
+                                Image(systemName: "info.circle")
+                                    .font(.title2)
+                            }
+                            .sheet(isPresented: $showingCaloriesDetail) {
+                                CaloriesDetailView()
+                            }
+                        }
+
+                        // Matka
+                        HStack {
+                            if let distance = distance {
+                                Text("Matka: ")
+                                + Text("\(String(format: "%.2f", distance)) km").bold()
+                            } else {
+                                Text("Matka: Ei tietoa saatavilla")
+                            }
+                            Spacer()
+                            Button(action: {
+                                showingDistanceDetail = true
+                            }) {
+                                Image(systemName: "info.circle")
+                                    .font(.title2)
+                            }
+                            .sheet(isPresented: $showingDistanceDetail) {
+                                Text("Matkan lisätiedot täällä")
+                            }
+                        }
+
+                        // Syke
+                        HStack {
+                            if let heartRate = heartRate {
+                                Text("Syke: ")
+                                + Text("\(Int(heartRate)) bpm").bold()
+                            } else {
+                                Text("Syke: Ei tietoa saatavilla")
+                            }
+                            Spacer()
+                            Button(action: {
+                                showingHeartRateDetail = true
+                            }) {
+                                Image(systemName: "info.circle")
+                                    .font(.title2)
+                            }
+                            .sheet(isPresented: $showingHeartRateDetail) {
+                                Text("Sykkeen lisätiedot täällä")
+                            }
+                        }
+                    }
+                    .padding() // Sisällön pehmennys
+                    .background(Color.blue.opacity(0.3)) // Sisällön taustalle pehmeä valkoinen kerros
+                    .cornerRadius(10) // Pyöristetyt kulmat
+                    .shadow(radius: 10) // Pehmeä varjo
                 }
-                Spacer()
-                NavigationLink(destination: HealthDataDetailView(dataType: dataType)) { // Oletetaan että HealthDataDetailView on määritelty jossain muualla
-                    Text("Näytä lisätiedot")
-                        .font(.footnote)
-                        .padding(8)
-                        .background(Color.white)
-                        .foregroundColor(.blue)
-                        .cornerRadius(5)
-                }
+                .padding(30) // Varmistaa, että sisältö ei mene aivan reunoille
             }
-            .padding()
-            .background(Color.blue)
-            .foregroundColor(.white)
-            .cornerRadius(10)
         }
-        .padding(.horizontal)
+        .onAppear {
+            fetchHealthData()
+        }
     }
 
     // Terveystietojen haku
@@ -65,6 +151,7 @@ struct HealthDataView: View {
             if let count = count {
                 DispatchQueue.main.async {
                     self.stepCount = count
+                    updateData() // Päivityksen jälkeen
                 }
             }
         }
@@ -73,6 +160,7 @@ struct HealthDataView: View {
             if let calories = calories {
                 DispatchQueue.main.async {
                     self.caloriesBurned = calories
+                    updateData() // Päivityksen jälkeen
                 }
             }
         }
@@ -81,6 +169,7 @@ struct HealthDataView: View {
             if let distance = distance {
                 DispatchQueue.main.async {
                     self.distance = distance / 1000  // Muutetaan kilometreiksi
+                    updateData() // Päivityksen jälkeen
                 }
             }
         }
@@ -89,8 +178,35 @@ struct HealthDataView: View {
             if let heartRate = heartRate {
                 DispatchQueue.main.async {
                     self.heartRate = heartRate
+                    updateData() // Päivityksen jälkeen
                 }
             }
         }
+    }
+    
+    // Päivityksen jälkeinen toiminto
+    func updateData() {
+        self.lastUpdated = Date() // Tallennetaan päivityksen aika
+        self.showUpdatedNotification() // Näytetään ilmoitus
+    }
+    
+    // Näytetään ilmoitus hetkellisesti
+    func showUpdatedNotification() {
+        withAnimation {
+            self.showingUpdatedNotification = true
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+            withAnimation {
+                self.showingUpdatedNotification = false
+            }
+        }
+    }
+
+    // Ajan muotoilu
+    func formattedDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .short
+        formatter.timeStyle = .short
+        return formatter.string(from: date)
     }
 }
